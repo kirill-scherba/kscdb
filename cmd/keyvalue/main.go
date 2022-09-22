@@ -30,7 +30,7 @@ import (
 
 const (
 	appName    = "kscdb"
-	appVersion = "0.0.1"
+	appVersion = "0.0.2"
 	appDescr   = "AWS Keyspaces KeyValue sample application"
 )
 

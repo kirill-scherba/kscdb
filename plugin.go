@@ -13,7 +13,7 @@ import (
 )
 
 // Plugin is plugins function and parameters used in requests
-// and responce teonet commands.
+// and response teonet commands.
 type Plugin struct {
 	ID            uint32   // Packet id
 	Name          string   // Plugin name
