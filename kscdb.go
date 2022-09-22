@@ -20,6 +20,8 @@ import (
 	"github.com/gocql/gocql"
 )
 
+const Version = "0.0.3"
+
 // Kscdb is kscdb packet receiver
 type Kscdb struct {
 	session *gocql.Session
@@ -154,13 +156,16 @@ func (cdb *Kscdb) List(key string) (keyList KeyList, err error) {
 }
 
 // ListBody read and return array of all keys data starts from selected key
-func (cdb *Kscdb) ListBody(key string) (dataList []string, err error) {
-	var dataOut string
+func (cdb *Kscdb) ListBody(key string) (dataList [][]byte, err error) {
 	iter := cdb.session.Query(`
 		SELECT data FROM map WHERE key >= ? and key < ?
 		ALLOW FILTERING`,
 		key, key+"a").Iter()
-	for iter.Scan(&dataOut) {
+	for {
+		var dataOut []byte
+		if !iter.Scan(&dataOut) {
+			break
+		}
 		dataList = append(dataList, dataOut)
 	}
 	return

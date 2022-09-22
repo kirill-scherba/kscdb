@@ -9,11 +9,13 @@ and call remote functions defined in go plugins.
 
 ## Run example
 
-The `keyvalue` packages example connect to AWS Keyspaces, save KeyValue to Keyspaces
-and than read it. To execute this example you need create `kscdb` keyspace in 
-your AWS Keyspaces and get your AWS Keyspaces credentials in AWS Users Page.
+The `keyvalue` packages example connect to AWS Keyspaces, save KeyValue to
+Keyspaces and than read it. Than save another one KeyValue and read list of
+keys and list of values. To execute this example you need create `kscdb`
+keyspace in your AWS Keyspaces and get your AWS Keyspaces credentials in AWS
+Users Page.
 
-The `-username`, `-passwd` and `-host` is requered parameters, or you can use 
+The `-username`, `-passwd` and `-host` is requered parameters, or you can use
 environment variables instead:
 
     KEYSPACES_USERNAME - keyspaces user name
