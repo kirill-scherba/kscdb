@@ -7,7 +7,9 @@ and call remote functions defined in go plugins.
 [![GoDoc](https://godoc.org/github.com/kirill-scherba/kscdb?status.svg)](https://godoc.org/github.com/kirill-scherba/kscdb/)
 [![Go Report Card](https://goreportcard.com/badge/github.com/kirill-scherba/kscdb)](https://goreportcard.com/report/github.com/kirill-scherba/kscdb)
 
-## Run example
+## Run examples
+
+### The `keyvalue` example
 
 The `keyvalue` packages example connect to AWS Keyspaces, save KeyValue to
 Keyspaces and than read it. Than save another one KeyValue and read list of
@@ -24,7 +26,14 @@ environment variables instead:
 
 Execute next command to run this example:
 
-    go run ./cmd/keyvalue
+    go run ./examples/keyvalue
+
+### The `id` example
+
+Execute next command to run this example:
+
+    go run ./examples/id
+
 
 ## Licence
 

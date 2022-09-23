@@ -9,7 +9,9 @@
 package kscdb
 
 import (
+	"context"
 	"embed"
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -17,10 +19,13 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sigv4-auth-cassandra-gocql-driver-plugin/sigv4"
 	"github.com/gocql/gocql"
+	"github.com/google/uuid"
 )
 
-const Version = "0.0.3"
+const Version = "0.0.4"
 
 // Kscdb is kscdb packet receiver
 type Kscdb struct {
@@ -33,35 +38,60 @@ var f embed.FS
 const crtFileName = "sf-class2-root.crt"
 
 // Connect to the cql cluster and return kscdb receiver
-func Connect(username, passwd string, hosts ...string) (cdb *Kscdb, err error) {
+func Connect(keyspace string, aws bool, hosts ...string) (cdb *Kscdb, err error) {
 
 	cdb = new(Kscdb)
-	const keyspace = "kscdb"
 
-	// add the Amazon Keyspaces service endpoint
+	// Add the keyspaces service endpoint
 	cluster := gocql.NewCluster(hosts...)
-	cluster.Port = 9142
 
-	// add your service specific credentials
-	cluster.Authenticator = gocql.PasswordAuthenticator{
-		Username: username,
-		Password: passwd,
-	}
+	// For AWS Keyspaces
+	if aws {
 
-	// Get certificate file from embed fs and write it to tmp folder
-	data, err := f.ReadFile("crt/" + crtFileName)
-	if err != nil {
-		return
-	}
-	err = os.WriteFile("/tmp/"+crtFileName, data, 0777)
-	if err != nil {
-		return
-	}
+		// Port used when dialing
+		cluster.Port = 9142
 
-	// Provide the path to the sf-class2-root.crt certificate file
-	cluster.SslOpts = &gocql.SslOptions{
-		CaPath:                 "/tmp/" + crtFileName,
-		EnableHostVerification: false,
+		// add your service specific credentials
+		// cluster.Authenticator = gocql.PasswordAuthenticator{
+		// 	Username: username,
+		// 	Password: passwd,
+		// }
+
+		// Get credentails from AWS Config
+		cfg, errCfg := config.LoadDefaultConfig(context.TODO())
+		if errCfg != nil {
+			err = errCfg
+			return
+		}
+		cre, errCfg := cfg.Credentials.Retrieve(context.TODO())
+		if errCfg != nil {
+			err = errCfg
+			return
+		}
+
+		// Use the SigV4 AWS authentication plugin
+		var auth sigv4.AwsAuthenticator = sigv4.NewAwsAuthenticator()
+		auth.Region = cfg.Region
+		auth.AccessKeyId = cre.AccessKeyID
+		auth.SecretAccessKey = cre.SecretAccessKey
+		cluster.Authenticator = auth
+
+		// Get certificate file from embed fs and write it to tmp folder
+		var data []byte
+		data, err = f.ReadFile("crt/" + crtFileName)
+		if err != nil {
+			return
+		}
+		err = os.WriteFile("/tmp/"+crtFileName, data, 0777)
+		if err != nil {
+			return
+		}
+
+		// Provide the path to the sf-class2-root.crt certificate file
+		cluster.SslOpts = &gocql.SslOptions{
+			CaPath:                 "/tmp/" + crtFileName,
+			EnableHostVerification: false,
+		}
 	}
 
 	// Override default Consistency to LocalQuorum
@@ -80,17 +110,17 @@ func Connect(username, passwd string, hosts ...string) (cdb *Kscdb, err error) {
 	// 	'replication_factor' : 3
 	// };
 	var tables = []string{`
-		create TABLE IF NOT EXISTS kscdb.map(
+		create TABLE IF NOT EXISTS ` + keyspace + `.map(
 			key text,
 			data blob,
 			PRIMARY KEY(key)
 		);`, `
-		create TABLE IF NOT EXISTS kscdb.ids(
+		create TABLE IF NOT EXISTS ` + keyspace + `.ids(
 			id_name text,
 			next_id int,
 			PRIMARY KEY(id_name)
 		);`, `
-		create TABLE IF NOT EXISTS kscdb.queue(
+		create TABLE IF NOT EXISTS ` + keyspace + `.queue(
 			key text, time timestamp, 
 			random UUID, lock text, 
 			data blob, 
@@ -137,7 +167,7 @@ func (cdb *Kscdb) Get(key string) (data []byte, err error) {
 // Delete record from database by key, returns
 func (cdb *Kscdb) Delete(key string) (err error) {
 	// Does not return err of cdb.session.Query function
-	err = cdb.session.Query(`DELETE data FROM map WHERE key = ?`,
+	err = cdb.session.Query(`DELETE FROM map WHERE key = ?`,
 		key).Exec()
 	return
 }
@@ -235,7 +265,7 @@ func (cdb *Kscdb) GetID(key string) (data []byte, err error) {
 			log.Println("Increment current counter error:", err)
 			return
 		}
-		// log.Println("Update result:", ok, nextID)
+		log.Println("Update result:", ok, nextID)
 		if ok {
 			break
 		}
@@ -243,6 +273,19 @@ func (cdb *Kscdb) GetID(key string) (data []byte, err error) {
 
 	// Return received nextID in text
 	data = []byte(fmt.Sprintf("%d", nextID))
+	return
+}
+
+// Get ID for AWS Keyspaces
+func (cdb *Kscdb) GetIDaws(key string) (data []byte, err error) {
+
+	// Lock ID table
+	lockKey := "/lock/id/001"
+	cdb.Lock(lockKey)
+
+	// Read current ID
+	// Increment ID and return ID
+
 	return
 }
 
@@ -286,5 +329,46 @@ func (cdb *Kscdb) GetQueue(key string) (data []byte, err error) {
 	err = cdb.session.Query(
 		`DELETE FROM queue WHERE key = ? AND time = ? AND random = ?`,
 		key, time, random).Exec()
+	return
+}
+
+// Lock access for save concurrence
+func (cdb *Kscdb) Lock(key string) (lockid string, err error) {
+
+	// Create UUID
+	lockid = uuid.New().String()
+
+	for {
+		// Seve UUID to keyvalue
+		err = cdb.session.Query(
+			// `UPDATE map SET data = ? WHERE key = ? IF NOT EXIST`,
+			`INSERT INTO map (key, data) VALUES (?,?) IF NOT EXISTS`,
+			key, []byte(lockid)).Exec()
+
+		// Check if UUID saved
+		data, err := cdb.Get(key)
+		log.Println("check lock saved", key, string(data), err)
+		if string(data) == lockid {
+			break
+		}
+	}
+
+	return
+}
+
+// Unlock access for save concurrence
+func (cdb *Kscdb) Unlock(key, lockid string) (err error) {
+
+	data, err := cdb.Get(key)
+	if err != nil {
+		return
+	}
+	if string(data) != lockid {
+		err = errors.New("can't unlock, the lockid not equal")
+		return
+	}
+
+	err = cdb.Delete(key)
+
 	return
 }

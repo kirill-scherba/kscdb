@@ -8,16 +8,13 @@
 // To execute this example you need create `kscdb` keyspace in
 // your AWS Keyspaces and get your AWS Keyspaces credentials in AWS Users Page.
 //
-// The `-username`, `-passwd` and `-host` is requered parameters, or you can use
-// environment variables instead:
-//
-//	KEYSPACES_USERNAME - keyspaces user name
-//	KEYSPACES_PASSWD - keyspaces parrword
-//	KEYSPACES_HOST - keyspaces host
+// The `-host` and `-keyspace` is requered parameters. To define host you can
+// use environment variable `KEYSPACES_HOST`. The keyspace has default value:
+// `kscdb`.
 //
 // Execute next command to run this example:
 //
-//	go run ./cmd/keyvalue
+//	go run ./examples/keyvalue
 package main
 
 import (
@@ -37,7 +34,10 @@ const (
 
 // Application parameters type
 type Params struct {
-	username, passwd, host string
+	// username, passwd string
+	keyspace string
+	host     string
+	aws      bool
 }
 
 // Application parameters
@@ -46,22 +46,23 @@ var params Params
 func main() {
 
 	// Application logo
-	fmt.Println(appDescr + " ver. " + appVersion)
+	fmt.Println(appDescr + " ver " + appVersion)
 
 	// Parse application command line parameters
-	flag.StringVar(&params.username, "username", os.Getenv("KEYSPACES_USERNAME"), "Keyspaces user name")
-	flag.StringVar(&params.passwd, "passwd", os.Getenv("KEYSPACES_PASSWD"), "Keyspaces user password")
-	flag.StringVar(&params.host, "host", os.Getenv("KEYSPACES_HOST"), "Keyspaces host")
+	// flag.StringVar(&params.username, "username", os.Getenv("KEYSPACES_USERNAME"), "Keyspaces user name")
+	// flag.StringVar(&params.passwd, "passwd", os.Getenv("KEYSPACES_PASSWD"), "Keyspaces user password")
+	flag.StringVar(&params.keyspace, "keyspace", "kscdb", "keyspace name")
+	flag.StringVar(&params.host, "host", os.Getenv("KEYSPACES_HOST"), "connect to host name")
+	flag.BoolVar(&params.aws, "aws", true, "connect to AWS Keyspaces")
+
 	//
 	flag.Parse()
 
 	// Check requered application parameters
-	if len(params.username) == 0 || len(params.passwd) == 0 || len(params.host) == 0 {
+	if len(params.host) == 0 {
 		fmt.Println(
-			"The username, passwd and host is requered parameters",
+			"The host is requered parameters",
 			"\nor you can use environment variables:",
-			"\n  KEYSPACES_USERNAME - keyspaces user name",
-			"\n  KEYSPACES_PASSWD - keyspaces parrword",
 			"\n  KEYSPACES_HOST - keyspaces host",
 		)
 		flag.Usage()
@@ -70,7 +71,7 @@ func main() {
 
 	// Connect to AWS keyspaces
 	log.Println("Start connection to AWS Keyspaces")
-	cdb, err := kscdb.Connect(params.username, params.passwd, params.host)
+	cdb, err := kscdb.Connect(params.keyspace, params.aws, params.host)
 	if err != nil {
 		panic(err)
 	}
@@ -121,4 +122,14 @@ func main() {
 	for _, value := range values {
 		fmt.Println(string(value))
 	}
+
+	// Test lock/unlock
+	log.Println("Lock")
+	lockKey := "/test/lock/001"
+	lockid, err := cdb.Lock(lockKey)
+	fmt.Println("lock:", lockKey, lockid, err)
+
+	log.Println("Unlock")
+	err = cdb.Unlock(lockKey, lockid)
+	fmt.Println("unlock:", lockKey, lockid, err)
 }
