@@ -81,7 +81,7 @@ func main() {
 	// Set test value
 	key := "/test/key/001"
 	value := []byte("Some test value")
-	err = cdb.Set(key, value)
+	err = cdb.Map.Set(key, value)
 	if err != nil {
 		panic(err)
 	}
@@ -90,7 +90,7 @@ func main() {
 	// Get test value
 	// You can check this value in AWS Keyspace CQL Editor with command:
 	//   select blobAsText(data) from kscdb.map where key='/test/key/001'
-	data, err := cdb.Get(key)
+	data, err := cdb.Map.Get(key)
 	if err != nil {
 		panic(err)
 	}
@@ -99,7 +99,7 @@ func main() {
 	// Add next one key value
 	key = "/test/key/002"
 	value = []byte("Some next test value")
-	err = cdb.Set(key, value)
+	err = cdb.Map.Set(key, value)
 	if err != nil {
 		panic(err)
 	}
@@ -107,14 +107,14 @@ func main() {
 
 	// Get list of keys
 	key = "/test/key/"
-	keyList, err := cdb.List(key)
+	keyList, err := cdb.Map.List(key)
 	if err != nil {
 		panic(err)
 	}
 	log.Printf("Get keys list:\n%s\n", keyList.String())
 
 	// Get list with body
-	values, err := cdb.ListBody(key)
+	values, err := cdb.Map.ListBody(key)
 	if err != nil {
 		panic(err)
 	}

@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"sync"
 
 	"github.com/kirill-scherba/kscdb"
 )
@@ -68,17 +69,31 @@ func main() {
 
 	// Create ID
 	key := "/test/id/001"
-	// value := []byte("1")
-	// cdb.SetID(key, value)
-	// if err != nil {
-	// 	panic(err)
-	// }
-	// log.Println("Set ID", key, string(value))
-
-	// Get new ID
-	data, err := cdb.GetID(key)
+	value := []byte("1")
+	cdb.ID.Set(key, value)
 	if err != nil {
 		panic(err)
 	}
-	log.Println(string(data))
+	log.Println("Set ID", key, "to", string(value))
+
+	// Reset lock
+	// cdb.Map.Delete("/test/id/001/lock")
+	cdb.Unlock(key)
+
+	// Get 10 new IDs parallel
+	var wg sync.WaitGroup
+	for i := 1; i <= 10; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			log.Println("Request Next ID,", "loop:", i)
+			data, err := cdb.ID.Get(key)
+			if err != nil {
+				log.Println("GetID error:", key, err)
+				return
+			}
+			log.Println("Get loop:", i, "Next ID:",string(data))
+		}(i)
+	}
+	wg.Wait()
 }
