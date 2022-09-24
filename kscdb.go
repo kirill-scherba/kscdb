@@ -122,9 +122,9 @@ func Connect(keyspace string, aws bool, hosts ...string) (cdb *Kscdb, err error)
 			next_id int,
 			PRIMARY KEY(id_name)
 		);`, `
-		create TABLE IF NOT EXISTS ` + keyspace + `.queue(
+		create TABLE IF NOT EXISTS ` + keyspace + `.`+queueTable+`(
 			key text, time timestamp, 
-			random UUID, lock text, 
+			random text, lock text, 
 			data blob, 
 			PRIMARY KEY(key, time, random)
 		);
