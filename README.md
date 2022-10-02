@@ -34,7 +34,6 @@ Execute next command to run this example:
 
     go run ./examples/id
 
-
 ## Licence
 
 [BSD](LICENSE)
